@@ -76,6 +76,14 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("--duration", type=float, help="stop after N seconds")
     out.add_argument("-v", "--verbose", action="store_true", help="debug logging")
 
+    diag = p.add_argument_group("diagnostics")
+    diag.add_argument(
+        "--probe",
+        action="store_true",
+        help="measure what the camera actually delivers and exit. Reports UNIQUE "
+        "frames per second, which is not the same as read() calls per second.",
+    )
+
     return p
 
 

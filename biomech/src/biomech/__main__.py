@@ -42,6 +42,12 @@ def main(argv: list[str] | None = None) -> int:
         for section, values in cfg.to_dict().items():
             log.info("  %s: %s", section, values)
 
+        if args.probe:
+            from .capture.probe import probe_camera
+
+            probe_camera(cfg.capture)
+            return 0
+
         from .pipeline.runner import run  # imported late: it loads MediaPipe
 
         return run(cfg, args)
