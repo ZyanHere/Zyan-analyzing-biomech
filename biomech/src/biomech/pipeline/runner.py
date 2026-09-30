@@ -22,7 +22,6 @@ import logging
 import time
 
 import cv2
-import numpy as np
 
 from ..biomechanics.angles import compute_angles
 from ..capture.camera import CameraSource
@@ -33,16 +32,9 @@ from ..errors import CaptureError, SourceExhaustedError
 from ..filtering.one_euro import LandmarkFilter
 from ..inference.pose import PoseEstimator
 from ..metrics.timing import PipelineMetrics
-from ..types import MeasurementName, PoseResult, Side, Verdict
-from ..ui.overlay import (
-    draw_banner,
-    draw_health,
-    draw_measurements,
-    draw_orientation,
-    draw_skeleton,
-)
+from ..ui.layout import FrameComposer, canvas_size
 from ..validity.anterior import AnteriorTracker
-from ..validity.orientation import OrientationState, PlaneGate, yaw_degrees
+from ..validity.orientation import PlaneGate, yaw_degrees
 from ..validity.rules import ValidityInputs, ValidityJudge
 from ..validity.signals import BoneLengthTracker
 
@@ -77,6 +69,8 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
     show_ui = not args.no_ui
 
     if show_ui:
+        # Resizable, so the window manager does any scaling on the display side
+        # rather than costing numpy work on the inference thread.
         cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(WINDOW, cfg.ui.window_width, cfg.ui.window_height)
 
@@ -113,6 +107,7 @@ def _loop(
     deadline: float | None,
 ) -> None:
     """Take the newest frame, infer, draw, measure. Repeat."""
+    composer: FrameComposer | None = None
     while deadline is None or time.perf_counter() < deadline:
         frame = source.next_frame()
         if frame is None:
@@ -152,8 +147,22 @@ def _loop(
 
         if show_ui:
             started = time.perf_counter()
-            canvas = _render(cfg, frame.image, result, angles, verdicts, orientation,
-                             metrics, source)
+            if composer is None:
+                composer = FrameComposer(*frame.image.shape[1::-1])
+                cv2.resizeWindow(WINDOW, *canvas_size(*frame.image.shape[1::-1]))
+            canvas = composer.compose(
+                image=frame.image,
+                landmarks=marks,
+                angles=angles,
+                verdicts=verdicts,
+                orientation=orientation,
+                stats=metrics.snapshot(),
+                source_note=source.description,
+                facing_note=anterior.confidence_note,
+                min_visibility=cfg.validity.min_visibility,
+                draw_pose=cfg.ui.draw_skeleton,
+                banner=_banner_for(source, marks),
+            )
             cv2.imshow(WINDOW, canvas)
             metrics.render_ms.add((time.perf_counter() - started) * 1000.0)
             if (cv2.waitKey(1) & 0xFF) in _QUIT_KEYS:
@@ -163,35 +172,13 @@ def _loop(
         metrics.frame_displayed(frame.capture_ts)
 
 
-def _render(
-    cfg: Config,
-    image: np.ndarray,
-    result: PoseResult,
-    angles: dict[tuple[MeasurementName, Side], float],
-    verdicts: dict[tuple[MeasurementName, Side], Verdict],
-    orientation: OrientationState,
-    metrics: PipelineMetrics,
-    source: FrameSource,
-) -> np.ndarray:
-    """Compose one output frame. Pure drawing - no decisions."""
-    canvas = cv2.resize(image, (cfg.ui.window_width, cfg.ui.window_height))
-    src_h, src_w = image.shape[:2]
-    scale = (cfg.ui.window_width / src_w, cfg.ui.window_height / src_h)
-
-    landmarks = result.landmarks
-    if landmarks is not None and cfg.ui.draw_skeleton:
-        draw_skeleton(canvas, landmarks, scale, cfg.validity.min_visibility)
-
-    draw_measurements(canvas, angles, verdicts)
-    draw_orientation(canvas, orientation)
-    if cfg.ui.show_health_panel:
-        draw_health(canvas, metrics.snapshot(), source.description)
-
+def _banner_for(source: FrameSource, marks: object) -> str:
+    """The one condition, if any, the user needs to act on right now."""
     if not source.is_healthy:
-        draw_banner(canvas, "camera stopped delivering frames - waiting")
-    elif landmarks is None:
-        draw_banner(canvas, "no person detected")
-    return canvas
+        return "camera stopped delivering frames - waiting"
+    if marks is None:
+        return "no person detected"
+    return ""
 
 
 def _report(metrics: PipelineMetrics, source: FrameSource) -> None:

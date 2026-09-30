@@ -126,10 +126,15 @@ class FilterConfig:
 
 @dataclass(frozen=True, slots=True)
 class UIConfig:
-    """Rendering. Display size is a performance lever - see BUILD_PLAN 11.3."""
+    """Rendering.
 
-    window_width: int = 1100
-    window_height: int = 825
+    The canvas is composed at the video's native resolution; these are only the
+    initial window size, which the window manager scales for free. Resizing the
+    canvas in numpy instead costs the inference thread directly.
+    """
+
+    window_width: int = 1000
+    window_height: int = 576
     show_health_panel: bool = True
     draw_skeleton: bool = True
 
