@@ -20,8 +20,8 @@ import math
 import cv2
 import numpy as np
 
-from ..biomechanics.conventions import REQUIRED_PLANE, present
-from ..types import LandmarkSet, MeasurementName, Plane, Side
+from ..biomechanics.conventions import present
+from ..types import LandmarkSet, MeasurementName, Side, Verdict
 from ..validity.orientation import OrientationState
 
 # Fixed display order: never reordered, so a value stays in the same place as
@@ -53,13 +53,6 @@ _UNCERTAIN = (0, 150, 255)
 _PANEL_BG = (0, 0, 0)
 _TEXT = (235, 235, 235)
 _OUT_OF_RANGE = (80, 170, 255)
-
-# What the subject should do to make a measurement available again.
-_PLANE_HINT = {
-    Plane.SAGITTAL: "-- turn side-on",
-    Plane.FRONTAL: "-- face the camera",
-}
-
 
 def draw_skeleton(
     image: np.ndarray,
@@ -110,7 +103,7 @@ def draw_health(image: np.ndarray, stats: dict[str, float], source_note: str) ->
 def draw_measurements(
     image: np.ndarray,
     angles: dict[tuple[MeasurementName, Side], float],
-    orientation: OrientationState | None = None,
+    verdicts: dict[tuple[MeasurementName, Side], Verdict] | None = None,
 ) -> None:
     """List every measurement, always, in a fixed order.
 
@@ -129,16 +122,19 @@ def draw_measurements(
     cv2.rectangle(image, (x - 14, 0), (w, 34 * len(_ROWS) + 22), _PANEL_BG, -1)
 
     for i, (name, side) in enumerate(_ROWS):
-        supported = orientation is None or orientation.supports(name)
-        if supported:
+        verdict = verdicts.get((name, side)) if verdicts else None
+        if verdict is not None and not verdict.is_valid:
+            # Never a bare blank: the reason is the requirement, not a courtesy.
+            text, colour = f"-- {verdict.reason}", _UNCERTAIN
+        else:
             shown = present(name, angles.get((name, side), float("nan")))
             text = str(shown)
             colour = _TEXT if not math.isnan(shown.magnitude_deg) else _UNCERTAIN
             if not math.isnan(shown.magnitude_deg) and not shown.within_normal_range:
                 colour = _OUT_OF_RANGE
-        else:
-            text = _PLANE_HINT[REQUIRED_PLANE[name]]
-            colour = _UNCERTAIN
+            if verdict is not None and verdict.advisory:
+                text = f"{text}  ({verdict.advisory})"
+                colour = _OUT_OF_RANGE
 
         label = f"{name.value.replace('_', ' ')} {side.value}"
         cv2.putText(image, label, (x, 26 + i * 34),
