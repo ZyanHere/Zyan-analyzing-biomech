@@ -83,6 +83,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="measure what the camera actually delivers and exit. Reports UNIQUE "
         "frames per second, which is not the same as read() calls per second.",
     )
+    diag.add_argument(
+        "--bench-inference",
+        type=Path,
+        metavar="VIDEO",
+        help="replay a video through the model alone and report its latency, "
+        "with no camera and nothing downstream. Reproducible, and it measures "
+        "the machine rather than the webcam.",
+    )
 
     return p
 

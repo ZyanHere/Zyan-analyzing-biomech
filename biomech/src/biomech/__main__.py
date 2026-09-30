@@ -48,6 +48,12 @@ def main(argv: list[str] | None = None) -> int:
             probe_camera(cfg.capture)
             return 0
 
+        if args.bench_inference:
+            from .inference.bench import benchmark_inference
+
+            benchmark_inference(args.bench_inference, cfg.model)
+            return 0
+
         from .pipeline.runner import run  # imported late: it loads MediaPipe
 
         return run(cfg, args)
