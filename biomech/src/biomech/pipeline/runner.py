@@ -24,6 +24,8 @@ import time
 import cv2
 import numpy as np
 
+from ..biomechanics.angles import compute_angles
+from ..biomechanics.frame import anterior_cues
 from ..capture.camera import CameraSource
 from ..capture.source import FrameSource
 from ..capture.video import VideoSource
@@ -31,7 +33,8 @@ from ..config import Config
 from ..errors import CaptureError, SourceExhaustedError
 from ..inference.pose import PoseEstimator
 from ..metrics.timing import PipelineMetrics
-from ..ui.overlay import draw_banner, draw_health, draw_skeleton
+from ..types import MeasurementName, PoseResult, Side
+from ..ui.overlay import draw_banner, draw_health, draw_measurements, draw_skeleton
 
 log = logging.getLogger(__name__)
 
@@ -102,9 +105,13 @@ def _loop(
         if not result.has_person:
             metrics.frames_without_person += 1
 
+        started = time.perf_counter()
+        angles = _measure(result)
+        metrics.biomech_ms.add((time.perf_counter() - started) * 1000.0)
+
         if show_ui:
             started = time.perf_counter()
-            canvas = _render(cfg, frame.image, result, metrics, source)
+            canvas = _render(cfg, frame.image, result, angles, metrics, source)
             cv2.imshow(WINDOW, canvas)
             metrics.render_ms.add((time.perf_counter() - started) * 1000.0)
             if (cv2.waitKey(1) & 0xFF) in _QUIT_KEYS:
@@ -114,10 +121,26 @@ def _loop(
         metrics.frame_displayed(frame.capture_ts)
 
 
+def _measure(result: PoseResult) -> dict[tuple[MeasurementName, Side], float]:
+    """Compute the twelve angles, or an empty map when nobody is in frame.
+
+    The anterior direction is taken as unanimous agreement of the three cues,
+    and None otherwise. A guessed sign turns flexion into extension, so no
+    guess is made. The temporal hold that makes this robust arrives with the
+    validity layer.
+    """
+    if result.landmarks is None:
+        return {}
+    cues = anterior_cues(result.landmarks.image_xy)
+    unanimous = cues[0] if cues[0] == cues[1] == cues[2] else None
+    return compute_angles(result.landmarks, unanimous)
+
+
 def _render(
     cfg: Config,
     image: np.ndarray,
-    result: object,
+    result: PoseResult,
+    angles: dict[tuple[MeasurementName, Side], float],
     metrics: PipelineMetrics,
     source: FrameSource,
 ) -> np.ndarray:
@@ -126,10 +149,11 @@ def _render(
     src_h, src_w = image.shape[:2]
     scale = (cfg.ui.window_width / src_w, cfg.ui.window_height / src_h)
 
-    landmarks = getattr(result, "landmarks", None)
+    landmarks = result.landmarks
     if landmarks is not None and cfg.ui.draw_skeleton:
         draw_skeleton(canvas, landmarks, scale, cfg.validity.min_visibility)
 
+    draw_measurements(canvas, angles)
     if cfg.ui.show_health_panel:
         draw_health(canvas, metrics.snapshot(), source.description)
 

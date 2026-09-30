@@ -15,10 +15,28 @@ conflating them in one colour would mislead.
 
 from __future__ import annotations
 
+import math
+
 import cv2
 import numpy as np
 
-from ..types import LandmarkSet
+from ..biomechanics.conventions import present
+from ..types import LandmarkSet, MeasurementName, Side
+
+# Fixed display order: never reordered, so a value stays in the same place as
+# the subject moves and the eye can find it without reading.
+_ROWS: tuple[tuple[MeasurementName, Side], ...] = tuple(
+    (name, side)
+    for name in (
+        MeasurementName.ELBOW_FLEXION,
+        MeasurementName.KNEE_FLEXION,
+        MeasurementName.SHOULDER_FLEXION,
+        MeasurementName.SHOULDER_ABDUCTION,
+        MeasurementName.HIP_FLEXION,
+        MeasurementName.ANKLE_ANGLE,
+    )
+    for side in (Side.LEFT, Side.RIGHT)
+)
 
 # Drawn as (proximal, distal) pairs. Face landmarks are omitted: they carry no
 # measurement and clutter the overlay.
@@ -33,6 +51,7 @@ _CONFIDENT = (0, 235, 0)
 _UNCERTAIN = (0, 150, 255)
 _PANEL_BG = (0, 0, 0)
 _TEXT = (235, 235, 235)
+_OUT_OF_RANGE = (80, 170, 255)
 
 
 def draw_skeleton(
@@ -79,6 +98,35 @@ def draw_health(image: np.ndarray, stats: dict[str, float], source_note: str) ->
     for i, line in enumerate(lines):
         cv2.putText(image, line, (12, 26 + i * 22),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.52, _TEXT, 1, cv2.LINE_AA)
+
+
+def draw_measurements(
+    image: np.ndarray,
+    angles: dict[tuple[MeasurementName, Side], float],
+) -> None:
+    """List every measurement, always, in a fixed order.
+
+    All twelve are shown whether or not they currently have a value. Rows that
+    appear and vanish as the subject turns read as bugs; a permanent list makes
+    the constraint visible instead of hiding it.
+
+    Phase 4 scope: values and `--` only. The reason a row is blank arrives with
+    the validity layer in phase 6.
+    """
+    h, w = image.shape[:2]
+    x = w - 330
+    cv2.rectangle(image, (x - 14, 0), (w, 34 * len(_ROWS) + 22), _PANEL_BG, -1)
+
+    for i, (name, side) in enumerate(_ROWS):
+        shown = present(name, angles.get((name, side), float("nan")))
+        colour = _TEXT if not math.isnan(shown.magnitude_deg) else _UNCERTAIN
+        if not shown.within_normal_range and not math.isnan(shown.magnitude_deg):
+            colour = _OUT_OF_RANGE
+        label = f"{name.value.replace('_', ' ')} {side.value}"
+        cv2.putText(image, label, (x, 26 + i * 34),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.44, _TEXT, 1, cv2.LINE_AA)
+        cv2.putText(image, str(shown), (x, 44 + i * 34),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.52, colour, 1, cv2.LINE_AA)
 
 
 def draw_banner(image: np.ndarray, message: str) -> None:

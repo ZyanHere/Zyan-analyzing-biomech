@@ -536,8 +536,67 @@ the measured result.
 ### 12.4.2 Run with no camera attached (replay path)
 ### 12.4.3 No absolute paths remain
 
+## 12.5 Personal data removal
+
+Run **after** the application is finished and its results are recorded, because some of
+this data is what makes the results reproducible. Removing it earlier would mean
+re-recording to finish the work.
+
+### 12.5.1 Inventory first
+```
+find biomech/research/fixtures -type f \( -name "*.mp4" -o -name "*.png" -o -name "*.jpg" \)
+git log --all --pretty=format: --name-only --diff-filter=A | sort -u | grep -iE "\.(mp4|png|jpg|jsonl)$"
+```
+Disk and history are different questions. A file deleted from disk that was ever
+committed is still in history and still published.
+
+### 12.5.2 Local media - delete unconditionally
+
+Four session videos, four exposure-test videos, and one raw still. None was ever
+committed (the `.gitignore` caught them), so deleting from disk removes them completely.
+
+**Cost:** the model-comparison findings (F16, F24) replay *identical frames* through
+lite/full/heavy and cannot be reproduced without video. A landmark stream will not do -
+it is already one model's output. Those findings become documented-but-unreproducible.
+
+### 12.5.3 Landmark JSONL - a decision, not a default
+
+Five files are in git history. They contain 3D body coordinates, not images: body
+proportions and movement patterns across every recorded session.
+
+| Option | Keeps | Costs |
+|---|---|---|
+| **Keep all** | Every finding reproducible; reviewer runs replay with no webcam | Body-coordinate data stays public |
+| **Keep one short session** | Replay demo works; the "no webcam needed" claim holds | Filter and accuracy findings stop being reproducible |
+| **Remove entirely** | No personal data at all | Replay is undemonstrable; **requires a history rewrite** |
+
+Removal is not `git rm`. It needs `git filter-repo` or BFG, a force-push, and it breaks
+every existing clone:
+```
+git filter-repo --path-glob 'biomech/**/fixtures/**/*.jsonl' --invert-paths
+```
+Note the paths in history are the **pre-restructure** ones (`biomech/fixtures/...`), not
+the current ones.
+
+**Default recommendation: keep one short session, remove the rest.** The reviewer keeps
+a working `--source landmarks` demo, and the volume of retained personal data drops from
+five sessions to one. If the submission is due imminently, keeping all is defensible -
+the data is coordinates rather than imagery, and the repository can be made private or
+deleted after review.
+
+### 12.5.4 Decide the repository's visibility
+It is currently **public**. If it stays public after submission, everything in it is
+permanently crawlable. Making it private, or deleting it once the interview concludes,
+is a cheaper control than a history rewrite.
+
+### 12.5.5 Verify
+Re-run 12.5.1 and confirm the output matches the decision. Then confirm the application
+still starts and the test suite still passes: removing fixtures will skip tests that
+depend on them, and a skip must not be mistaken for a pass.
+
 **PASS:** a stranger can clone, install, and run both live and replay from the README
-alone.
+alone; and the personal data remaining in the repository is what 12.5.3 deliberately
+chose to keep, verified in history rather than only on disk.
 
 ---
 
