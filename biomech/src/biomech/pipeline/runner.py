@@ -30,6 +30,7 @@ from ..capture.source import FrameSource
 from ..capture.video import VideoSource
 from ..config import Config
 from ..errors import CaptureError, SourceExhaustedError
+from ..filtering.one_euro import LandmarkFilter
 from ..inference.pose import PoseEstimator
 from ..metrics.timing import PipelineMetrics
 from ..types import MeasurementName, PoseResult, Side, Verdict
@@ -72,6 +73,7 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
     anterior = AnteriorTracker()
     bones = BoneLengthTracker(cfg.validity.bone_history_frames)
     judge = ValidityJudge(cfg.validity)
+    smoother = LandmarkFilter(cfg.filtering)
     show_ui = not args.no_ui
 
     if show_ui:
@@ -83,7 +85,7 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
 
     try:
         _loop(cfg, source, estimator, metrics, gate, anterior, bones, judge,
-              show_ui, deadline)
+              smoother, show_ui, deadline)
     except SourceExhaustedError as end:
         log.info("%s", end)
     except KeyboardInterrupt:
@@ -106,6 +108,7 @@ def _loop(
     anterior: AnteriorTracker,
     bones: BoneLengthTracker,
     judge: ValidityJudge,
+    smoother: LandmarkFilter,
     show_ui: bool,
     deadline: float | None,
 ) -> None:
@@ -134,7 +137,14 @@ def _loop(
         if marks:
             bones.update(marks)
 
-        angles = compute_angles(marks, facing) if marks else {}
+        # Two signals from here on. Smoothed landmarks produce the displayed
+        # angles; RAW landmarks feed validity above, because a filter removes
+        # exactly the variation those checks look for (F27).
+        if marks is None:
+            smoother.reset()
+            angles = {}
+        else:
+            angles = compute_angles(smoother.apply(marks, frame.capture_ts), facing)
         verdicts = judge.judge_all(
             ValidityInputs(marks, orientation, bones, anterior.is_established)
         )

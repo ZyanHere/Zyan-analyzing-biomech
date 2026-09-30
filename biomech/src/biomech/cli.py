@@ -75,6 +75,12 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("--no-ui", action="store_true", help="run headless (benchmarking)")
     out.add_argument("--duration", type=float, help="stop after N seconds")
     out.add_argument("-v", "--verbose", action="store_true", help="debug logging")
+    out.add_argument(
+        "--no-filter",
+        action="store_true",
+        help="disable temporal smoothing. Useful for measuring raw jitter, and "
+        "for reading true peak range of motion, which smoothing shaves by ~10%%.",
+    )
 
     diag = p.add_argument_group("diagnostics")
     diag.add_argument(
@@ -103,6 +109,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
         capture=replace(base.capture, device_index=args.device),
         model=replace(base.model, variant=args.model, running_mode=args.running_mode),
         ui=replace(base.ui, show_health_panel=not args.no_ui),
+        filtering=replace(base.filtering, filter_landmarks=not args.no_filter),
     )
     cfg.validate()
     return cfg
