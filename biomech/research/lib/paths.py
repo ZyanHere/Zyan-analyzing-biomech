@@ -5,8 +5,9 @@ other machine, which matters when the work is going to be handed to someone else
 """
 from pathlib import Path
 
-PKG_ROOT = Path(__file__).resolve().parents[1]
-FIXTURES = PKG_ROOT / "fixtures"
+RESEARCH = Path(__file__).resolve().parents[1]      # biomech/research
+PKG_ROOT = RESEARCH.parent                          # biomech
+FIXTURES = RESEARCH / "fixtures"
 MODELS = PKG_ROOT / "models"
 DOCS = PKG_ROOT / "docs"
 

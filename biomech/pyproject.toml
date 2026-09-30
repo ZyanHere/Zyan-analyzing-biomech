@@ -1,0 +1,30 @@
+[project]
+name = "biomech"
+version = "0.1.0"
+description = "Real-time biomechanical analysis from a single monocular camera"
+requires-python = ">=3.12"
+
+[project.scripts]
+biomech = "biomech.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+# research/ is the investigation record, deliberately not held to these rules.
+# See docs/CODE_STANDARDS.md section 1.
+exclude = ["research"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RET", "ARG", "PTH"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src/biomech --cov-report=term-missing"
