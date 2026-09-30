@@ -34,7 +34,14 @@ from ..errors import CaptureError, SourceExhaustedError
 from ..inference.pose import PoseEstimator
 from ..metrics.timing import PipelineMetrics
 from ..types import MeasurementName, PoseResult, Side
-from ..ui.overlay import draw_banner, draw_health, draw_measurements, draw_skeleton
+from ..ui.overlay import (
+    draw_banner,
+    draw_health,
+    draw_measurements,
+    draw_orientation,
+    draw_skeleton,
+)
+from ..validity.orientation import OrientationState, PlaneGate, yaw_degrees
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +66,7 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
     source = open_source(cfg, args)
     estimator = PoseEstimator(cfg.model)
     metrics = PipelineMetrics(cfg.metrics)
+    gate = PlaneGate(cfg.orientation)
     show_ui = not args.no_ui
 
     if show_ui:
@@ -69,7 +77,7 @@ def run(cfg: Config, args: argparse.Namespace) -> int:
     log.info("running: %s -> %s", source.description, estimator.description)
 
     try:
-        _loop(cfg, source, estimator, metrics, show_ui, deadline)
+        _loop(cfg, source, estimator, metrics, gate, show_ui, deadline)
     except SourceExhaustedError as end:
         log.info("%s", end)
     except KeyboardInterrupt:
@@ -88,6 +96,7 @@ def _loop(
     source: FrameSource,
     estimator: PoseEstimator,
     metrics: PipelineMetrics,
+    gate: PlaneGate,
     show_ui: bool,
     deadline: float | None,
 ) -> None:
@@ -106,12 +115,14 @@ def _loop(
             metrics.frames_without_person += 1
 
         started = time.perf_counter()
+        yaw = yaw_degrees(result.landmarks.world_xyz) if result.landmarks else float("nan")
+        orientation = gate.update(yaw)
         angles = _measure(result)
         metrics.biomech_ms.add((time.perf_counter() - started) * 1000.0)
 
         if show_ui:
             started = time.perf_counter()
-            canvas = _render(cfg, frame.image, result, angles, metrics, source)
+            canvas = _render(cfg, frame.image, result, angles, orientation, metrics, source)
             cv2.imshow(WINDOW, canvas)
             metrics.render_ms.add((time.perf_counter() - started) * 1000.0)
             if (cv2.waitKey(1) & 0xFF) in _QUIT_KEYS:
@@ -141,6 +152,7 @@ def _render(
     image: np.ndarray,
     result: PoseResult,
     angles: dict[tuple[MeasurementName, Side], float],
+    orientation: OrientationState,
     metrics: PipelineMetrics,
     source: FrameSource,
 ) -> np.ndarray:
@@ -153,7 +165,8 @@ def _render(
     if landmarks is not None and cfg.ui.draw_skeleton:
         draw_skeleton(canvas, landmarks, scale, cfg.validity.min_visibility)
 
-    draw_measurements(canvas, angles)
+    draw_measurements(canvas, angles, orientation)
+    draw_orientation(canvas, orientation)
     if cfg.ui.show_health_panel:
         draw_health(canvas, metrics.snapshot(), source.description)
 

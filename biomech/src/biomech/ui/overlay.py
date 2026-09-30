@@ -20,8 +20,9 @@ import math
 import cv2
 import numpy as np
 
-from ..biomechanics.conventions import present
-from ..types import LandmarkSet, MeasurementName, Side
+from ..biomechanics.conventions import REQUIRED_PLANE, present
+from ..types import LandmarkSet, MeasurementName, Plane, Side
+from ..validity.orientation import OrientationState
 
 # Fixed display order: never reordered, so a value stays in the same place as
 # the subject moves and the eye can find it without reading.
@@ -52,6 +53,12 @@ _UNCERTAIN = (0, 150, 255)
 _PANEL_BG = (0, 0, 0)
 _TEXT = (235, 235, 235)
 _OUT_OF_RANGE = (80, 170, 255)
+
+# What the subject should do to make a measurement available again.
+_PLANE_HINT = {
+    Plane.SAGITTAL: "-- turn side-on",
+    Plane.FRONTAL: "-- face the camera",
+}
 
 
 def draw_skeleton(
@@ -103,30 +110,55 @@ def draw_health(image: np.ndarray, stats: dict[str, float], source_note: str) ->
 def draw_measurements(
     image: np.ndarray,
     angles: dict[tuple[MeasurementName, Side], float],
+    orientation: OrientationState | None = None,
 ) -> None:
     """List every measurement, always, in a fixed order.
 
     All twelve are shown whether or not they currently have a value. Rows that
     appear and vanish as the subject turns read as bugs; a permanent list makes
-    the constraint visible instead of hiding it.
+    the constraint visible instead of hiding it - and it is the direct
+    implementation of the brief's requirement to indicate that state rather
+    than display a misleading value.
 
-    Phase 4 scope: values and `--` only. The reason a row is blank arrives with
-    the validity layer in phase 6.
+    A row whose plane is not presented shows the instruction that would fix it,
+    never a number. At most ten of the twelve can be live at once, because
+    abduction's plane excludes the other five (FINDINGS.md F34).
     """
     h, w = image.shape[:2]
     x = w - 330
     cv2.rectangle(image, (x - 14, 0), (w, 34 * len(_ROWS) + 22), _PANEL_BG, -1)
 
     for i, (name, side) in enumerate(_ROWS):
-        shown = present(name, angles.get((name, side), float("nan")))
-        colour = _TEXT if not math.isnan(shown.magnitude_deg) else _UNCERTAIN
-        if not shown.within_normal_range and not math.isnan(shown.magnitude_deg):
-            colour = _OUT_OF_RANGE
+        supported = orientation is None or orientation.supports(name)
+        if supported:
+            shown = present(name, angles.get((name, side), float("nan")))
+            text = str(shown)
+            colour = _TEXT if not math.isnan(shown.magnitude_deg) else _UNCERTAIN
+            if not math.isnan(shown.magnitude_deg) and not shown.within_normal_range:
+                colour = _OUT_OF_RANGE
+        else:
+            text = _PLANE_HINT[REQUIRED_PLANE[name]]
+            colour = _UNCERTAIN
+
         label = f"{name.value.replace('_', ' ')} {side.value}"
         cv2.putText(image, label, (x, 26 + i * 34),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.44, _TEXT, 1, cv2.LINE_AA)
-        cv2.putText(image, str(shown), (x, 44 + i * 34),
+        cv2.putText(image, text, (x, 44 + i * 34),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.52, colour, 1, cv2.LINE_AA)
+
+
+def draw_orientation(image: np.ndarray, orientation: OrientationState) -> None:
+    """Show the current plane and live yaw, so the constraint is learnable.
+
+    The subject can see what turning does to the measurements, rather than
+    discovering by trial that half of them stopped working.
+    """
+    h, w = image.shape[:2]
+    colour = _CONFIDENT if orientation.plane is not None else _UNCERTAIN
+    yaw = "--" if math.isnan(orientation.yaw_deg) else f"{orientation.yaw_deg:.0f} deg"
+    cv2.rectangle(image, (0, h - 46), (430, h), _PANEL_BG, -1)
+    cv2.putText(image, f"rotation {yaw}  |  {orientation.guidance}", (12, h - 16),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.52, colour, 1, cv2.LINE_AA)
 
 
 def draw_banner(image: np.ndarray, message: str) -> None:
