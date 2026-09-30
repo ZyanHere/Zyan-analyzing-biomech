@@ -1,0 +1,18 @@
+# Python environment - rebuilt from requirements
+.venv/
+__pycache__/
+*.pyc
+
+# Pose models - 44 MB, downloaded from Google. See the README for the command.
+biomech/models/*.task
+
+# Recorded media contains video and stills OF THE SUBJECT.
+# This repository is PUBLIC. Committing these publishes them.
+# Landmark data (*.jsonl) is kept: it is what replay needs, and it holds
+# coordinates rather than images.
+biomech/fixtures/**/*.mp4
+biomech/fixtures/**/*.png
+biomech/fixtures/**/*.jpg
+
+# Keep the printed reference sheet
+!biomech/fixtures/reference/protractor_A4.png
