@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-01T00:49:55+00:00",
+  "label": "camera-full-ui",
+  "source": "camera 0 640x480 dshow exposure 2^-5 -> pose_landmarker_full (video mode)",
+  "latency_kind": "end_to_end",
+  "hardware": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 23 Model 96 Stepping 1, AuthenticAMD",
+    "python": "3.14.7",
+    "cpu_count": 16
+  },
+  "config": {
+    "capture": {
+      "device_index": 0,
+      "width": 640,
+      "height": 480,
+      "backend": "dshow",
+      "exposure_log2": -5.0,
+      "use_manual_exposure": true
+    },
+    "model": {
+      "variant": "full",
+      "running_mode": "video"
+    },
+    "validity": {
+      "min_visibility": 0.55,
+      "max_bone_cv_pct": 6.0,
+      "advisory_bone_asymmetry_pct": 8.0,
+      "bone_history_frames": 30
+    },
+    "orientation": {
+      "sagittal_min_yaw_deg": 45.0,
+      "frontal_max_yaw_deg": 30.0,
+      "hysteresis_deg": 5.0,
+      "hysteresis_frames": 5,
+      "require_unanimous_anterior": true
+    },
+    "filtering": {
+      "beta": 0.01,
+      "min_cutoff_hz": 1.0,
+      "d_cutoff_hz": 1.0,
+      "filter_landmarks": true,
+      "dt_min_s": 0.001,
+      "dt_max_s": 0.25
+    },
+    "ui": {
+      "window_width": 1000,
+      "window_height": 576,
+      "show_health_panel": true,
+      "draw_skeleton": true
+    },
+    "metrics": {
+      "window_frames": 120,
+      "percentiles": [
+        50.0,
+        95.0
+      ]
+    }
+  },
+  "metrics": {
+    "displayed_fps": 30.002310177881274,
+    "inference_p50_ms": 18.960499999820968,
+    "inference_p95_ms": 20.341099999996004,
+    "biomech_p50_ms": 0.6095999999615742,
+    "render_p50_ms": 2.7047000000948174,
+    "render_p95_ms": 3.0173000000104366,
+    "end_to_end_p50_ms": 24.711699999897974,
+    "end_to_end_p95_ms": 28.491699999904085,
+    "frames_processed": 894.0,
+    "frames_without_person": 0.0,
+    "source_drops": 8.0
+  }
+}

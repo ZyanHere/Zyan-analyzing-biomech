@@ -19,13 +19,19 @@ zeuron/
     pyproject.toml        package metadata, lint config
     src/biomech/          THE APPLICATION - production code
     tests/                mirrors src/ one-to-one
+    tools/                documentation generators - held to this document
     research/             the investigation record - NOT production code
       experiments/        37 scripts that produced the findings
       lib/                shared helpers for those scripts
       fixtures/           recorded sessions, replay data
-    docs/                 FINDINGS, BUILD_PLAN, this file
+    docs/                 FINDINGS, BUILD_PLAN, DATA, this file
+      benchmarks/         recorded performance runs, with hardware and config
     models/              downloaded .task files (gitignored)
 ```
+
+`tools/` is production-quality but not part of the application: it generates
+documentation from recorded measurements, so that a published number is never a retyped
+one. It is linted and typed like `src/`, and `src/` never imports from it.
 
 ### The `research/` boundary is deliberate and stated
 

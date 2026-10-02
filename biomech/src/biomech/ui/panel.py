@@ -139,8 +139,48 @@ def health_panel(panel: np.ndarray, stats: dict[str, float], source_note: str,
     plane_colour = _GOOD if orientation.plane is not None else _WARN
     cv2.putText(panel, f"rotation {yaw}  |  {orientation.guidance}",
                 (14, 56), _FONT, 0.46, plane_colour, 1, cv2.LINE_AA)
-    cv2.putText(panel, f"{facing_note}   drops {stats['source_drops']:.0f}"
-                       f"   no person {stats['frames_without_person']:.0f}",
-                (14, 80), _FONT, 0.40, _LABEL, 1, cv2.LINE_AA)
-    cv2.putText(panel, source_note, (max(14, width - 14 - 7 * len(source_note)), 80),
+    status = (f"{facing_note}   drops {stats['source_drops']:.0f}"
+              f"   no person {stats['frames_without_person']:.0f}")
+    cv2.putText(panel, status, (14, 80), _FONT, 0.40, _LABEL, 1, cv2.LINE_AA)
+
+    # Right-aligned beside the status line, measured rather than estimated. The
+    # canvas is composed at the video's NATIVE width - 640 px, not the size the
+    # window is scaled to - so there is far less room here than the window
+    # suggests, and a per-character estimate silently overlapped the two for
+    # every frame of a recorded session.
+    _draw_right_aligned(panel, source_note, status, width)
+
+
+def _text_width(text: str, scale: float) -> int:
+    """Rendered width in pixels, from the font rather than a guess."""
+    return cv2.getTextSize(text, _FONT, scale, 1)[0][0]
+
+
+def _elide(text: str, available: int, scale: float) -> str:
+    """Trim from the FRONT until it fits, keeping the informative tail.
+
+    The tail is the model and running mode; the head is the camera geometry,
+    which is already in the startup log. Dropping the end would discard the
+    part worth reading on screen.
+    """
+    if _text_width(text, scale) <= available:
+        return text
+    for cut in range(1, len(text)):
+        candidate = ".." + text[cut:]
+        if _text_width(candidate, scale) <= available:
+            return candidate
+    return ""
+
+
+def _draw_right_aligned(panel: np.ndarray, text: str, beside: str, width: int) -> None:
+    """Draw `text` at the right edge of the status row, never over `beside`."""
+    gap = 12
+    left_end = 14 + _text_width(beside, 0.40)
+    available = width - 14 - left_end - gap
+    if available <= 0:
+        return
+    shown = _elide(text, available, 0.38)
+    if not shown:
+        return
+    cv2.putText(panel, shown, (width - 14 - _text_width(shown, 0.38), 80),
                 _FONT, 0.38, _MUTED, 1, cv2.LINE_AA)

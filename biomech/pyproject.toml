@@ -7,6 +7,17 @@ requires-python = ">=3.12"
 [project.scripts]
 biomech = "biomech.__main__:main"
 
+# Pinned like the runtime dependencies, and for the same reason: a reviewer who
+# follows the README must get the toolchain the numbers were produced with.
+# Declared here rather than in requirements.txt because they are needed to
+# develop the package, not to run it.
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.9",
+]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"

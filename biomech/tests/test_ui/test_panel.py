@@ -128,3 +128,47 @@ class TestLayout:
         panel = np.zeros((HEALTH_HEIGHT, 640, 3), np.uint8)
         health_panel(panel, stats, "camera 0", SAGITTAL, "facing fwd")
         assert panel.std() > 0
+
+
+class TestHealthPanelFitsItsWidth:
+    """The health panel is drawn at the video's NATIVE width - 640 px - not at
+    the size the window is scaled to.
+
+    The source note is right-aligned beside the status line. An earlier version
+    positioned it with a `7 * len(text)` estimate, which put a 73-character note
+    at x=115 while the status line ran to x=394: the two overlapped on every
+    frame of a recorded session, and neither was readable. Measuring the text
+    is the fix, and this is the test that would have caught it.
+    """
+
+    LONG_NOTE = "camera 0 640x480 dshow exposure 2^-5 -> pose_landmarker_full (video mode)"
+
+    def test_the_source_note_never_overlaps_the_status_line(self) -> None:
+        from biomech.ui.panel import _elide, _text_width
+
+        width, status = 640, "facing rev (55% agreed)   drops 499   no person 2961"
+        left_end = 14 + _text_width(status, 0.40)
+        available = width - 14 - left_end - 12
+
+        shown = _elide(self.LONG_NOTE, available, 0.38)
+        start = width - 14 - _text_width(shown, 0.38)
+        assert start >= left_end, f"source note starts at {start}, status ends at {left_end}"
+
+    def test_elision_keeps_the_tail_because_that_names_the_model(self) -> None:
+        """The head is camera geometry, already in the startup log. The tail is
+        the model and running mode, which is what is worth reading on screen."""
+        from biomech.ui.panel import _elide
+
+        shown = _elide(self.LONG_NOTE, 300, 0.38)
+        assert shown.endswith("(video mode)")
+        assert shown.startswith("..")
+
+    def test_a_note_that_fits_is_left_untouched(self) -> None:
+        from biomech.ui.panel import _elide
+
+        assert _elide("landmarks s.jsonl", 400, 0.38) == "landmarks s.jsonl"
+
+    def test_renders_at_native_width_without_raising(self) -> None:
+        panel = np.zeros((HEALTH_HEIGHT, 640, 3), np.uint8)
+        health_panel(panel, STATS, self.LONG_NOTE, SAGITTAL, "facing fwd (49% agreed)")
+        assert panel.any()

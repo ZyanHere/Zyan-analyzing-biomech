@@ -73,7 +73,11 @@ class ValidityConfig:
     # accurate to 0.2 deg. ADVISORY ONLY: it never rejects (F37).
     advisory_bone_asymmetry_pct: float = 8.0
 
-    # Window for the bone-length variance estimate, in frames.
+    # Window for the bone-length variance estimate, in frames. One second at
+    # 30 FPS. NOT measured - chosen so the signal reports the reconstruction's
+    # current stability rather than its history, short enough that a limb
+    # entering occlusion is flagged within a second. The thresholds it feeds
+    # were measured (F37); this window was not swept.
     bone_history_frames: int = 30
 
 
@@ -133,6 +137,9 @@ class UIConfig:
     canvas in numpy instead costs the inference thread directly.
     """
 
+    # None of these came from an experiment: they are display preferences, and
+    # the window is resizable, so nothing downstream depends on them. Kept here
+    # so a reviewer does not go looking for a finding that does not exist.
     window_width: int = 1000
     window_height: int = 576
     show_health_panel: bool = True
@@ -143,7 +150,16 @@ class UIConfig:
 class MetricsConfig:
     """Timing. p95 matters because dropped-frame stalls live in the tail."""
 
+    # Four seconds at 30 FPS. A choice, not a measurement: long enough that one
+    # slow frame does not swing the displayed rate, short enough that the panel
+    # still answers "how is it behaving now" rather than "on average since
+    # start". The 72 s benchmark run (F38) reads this window at the END of the
+    # run, which is what makes "no thermal decay" a claim about the last four
+    # seconds rather than an average that would hide a decline.
     window_frames: int = 120
+
+    # p50 and p95 because the assignment asks for typical and worst-case
+    # latency; the tail is what a user actually notices.
     percentiles: tuple[float, ...] = (50.0, 95.0)
 
 

@@ -1182,6 +1182,199 @@ bilateral signals - it is that the bilateral signal should not have had a veto.
 
 ---
 
+## F38 - Phase 11: the full system holds 30 FPS. The old 28.6 reading was CPU contention.
+
+`python -m biomech --metrics-out`, four recorded clips concatenated into a 2595-frame
+(86 s) stream, plus a 30 s live camera run. Every number below is in
+`docs/benchmarks/*.json` with its hardware and configuration attached.
+
+### The system meets the requirement with everything enabled
+
+| Run | Displayed FPS | Inference p50 | Biomech p50 | Render p50 | Latency p50/p95 | Drops |
+|---|---|---|---|---|---|---|
+| **live camera, full UI, 30 s** | **30.0** | 19.0 | 0.61 | 2.7 | **24.7 / 28.5** | 8 (0.9%) |
+| video replay, full UI, 72 s | **39.0** | 19.8 | 0.84 | 2.9 | 25.2 / 26.2 | 0 |
+| video replay, headless, 72 s | 44.5 | 20.3 | 0.87 | - | 21.8 / 29.3 | 0 |
+| model alone | - | 19.8 | - | - | - | - |
+
+**The live figure of 30.0 is the camera's ceiling, not the pipeline's.** The same code on
+the same frames runs at 39.0 when the source is a file, which is the honest way to state
+headroom: source FPS 30, pipeline throughput 39, displayed FPS 30 (F35's distinction).
+
+Sustained for **2595 frames / 72 s with no decay** - the trailing-120-frame window still
+read 39.0 at the end of the run, so there is no thermal drift on this hardware at this
+duration. Zero drops on replay; 8 of 902 on the camera.
+
+### Where the frame goes
+
+    inference   19.8 ms   79%
+    render       2.9 ms   11%
+    biomech      0.8 ms    3%
+    other        1.7 ms    7%   capture, conversion, loop
+    -------------------------
+    total       25.2 ms         against a 33.3 ms budget: 24% spare
+
+**Phases 4-8 cost 3.7 ms of a 25.2 ms frame.** All twelve measurements, four validity
+signals, One Euro on 33 landmarks, the skeleton and the twelve-row panel together come to
+15% of the frame. The model is the system.
+
+### The 28.6 FPS reading reproduces exactly under two competing processes
+
+An earlier phase-9 measurement reported 28.6 FPS at 26.6 ms inference and was recorded as
+a shortfall requiring the fallback ladder. It was a **loaded machine**, not a slow
+pipeline. Sweeping CPU contention on 16 logical cores:
+
+| Competing CPU-bound processes | Displayed FPS | Inference p50 |
+|---|---|---|
+| 0 | **37.4** | 20.0 |
+| 2 | **29.1** | 26.9 |
+| 4 | 22.3 | 35.1 |
+| 8 | 14.9 | 48.5 |
+
+Two busy processes give 29.1 FPS at 26.9 ms - the earlier reading to within noise. The
+phase-9 benchmark ran alongside the test suite and linter.
+
+**This is the system's real performance sensitivity, and it is worth more than the headline
+number.** Inference degrades 2.4x between an idle and a half-loaded machine, because
+XNNPACK is multi-threaded and competes for the same cores. The practical consequence is a
+setup instruction, not a code change: **close other applications before measuring.**
+
+### The fallback ladder was not needed, and is mostly ineffective anyway
+
+Measured rather than assumed, so the ladder entry is factual:
+
+| Ladder rung | Idle FPS | Under 2-process load | Cost |
+|---|---|---|---|
+| none (shipped) | 37.4 | 29.1 | - |
+| 11.3.1-3 all rendering removed | 42.4 | - | no display at all |
+| 11.3.4 `lite` model | 46.2 | **36.5** | **3x knee jitter (F16)** |
+
+**Rungs 1-3 together cannot buy what rung 4 buys alone.** They target the 11% of the frame
+spent rendering; only the model variant touches the 79%. Removing *all* rendering - far
+more than the ladder proposes - gains 5.0 FPS; `lite` gains 8.8.
+
+The ladder's ordering is still right: it spends display quality before measurement quality.
+But if the requirement is ever genuinely missed, the first three rungs are close to
+cosmetic, and the real choice is accuracy against frame rate.
+
+**Decision: ship `full` with all rendering on. No rung applied.** `--model lite` remains
+available and documented as the one lever that works, with its cost stated.
+
+### Weak point
+
+One machine, 16 logical cores, one 86 s clip. The claim is about this hardware and the
+contention sweep is what makes that explicit rather than implied. A machine with fewer
+cores would sit further along the contention curve at idle.
+
+---
+
+## F39 - The bone-length veto is motion-sensitive. Two hypotheses refuted on the way.
+
+`research/experiments/08_regression/g1_abduction.py`, run against a 3805-frame session
+recorded with `--record-landmarks`. Prompted by two independent reviews of a demo
+recording that disagreed about one interval: the subject, facing the camera, raised both
+arms to horizontal. The display showed `52 deg adduction` where the arms were visibly near
+90, then vetoed both abduction rows with `unstable tracking` for five seconds, while body
+yaw wobbled between 1 and 26 degrees.
+
+**Three explanations were on the table. The data killed two of them, including both of
+mine.**
+
+### Refuted 1: abduction is not wrong
+
+Held horizontal, measured from the recording rather than read off a screenshot:
+
+| Band | Side | Median | p5 | p95 | Reads as adduction |
+|---|---|---|---|---|---|
+| hanging | L | 24.5 | 0.9 | 45.5 | 4.7% |
+| part-way | L | 57.3 | 3.3 | 75.7 | 4.8% |
+| **horizontal** | **L** | **80.4** | **75.2** | **81.6** | **1.6%** |
+| **horizontal** | **R** | **82.9** | **77.7** | **84.8** | **1.6%** |
+
+**80-83 degrees against a true ~90, with a p5-p95 spread of 6 degrees.** That is inside the
+model's known 15-27 degree landmark bias (F28) and it is stable. The `52 deg adduction`
+was a transient sampled mid-raise; the right arm does reach p5 = -19.7 during the
+transition, but the held pose is correct. A screenshot of a moving subject is not evidence
+about a held pose.
+
+### Refuted 2: arm elevation does not destabilise the shoulder
+
+The hypothesis was that raising the arm elevates and protracts the shoulder - F36's
+mechanism for rejecting the ratio-based yaw estimator - and that the moved landmark
+corrupts the abduction angle, the bone-length veto and the yaw together.
+
+| Band | Yaw | Shoulder height above hips |
+|---|---|---|
+| hanging | 10.4 (sd 10.5) | 1.002 (sd 0.024) |
+| part-way | 10.5 (sd 8.4) | 0.996 (sd 0.032) |
+| horizontal | **5.5 (sd 3.2)** | 0.977 (sd 0.006) |
+
+The shoulder moves **2.5%**, and yaw becomes **more** stable with the arms out, not less.
+The protraction effect is real but far too small to explain a five-second veto. The
+world-3D estimator absorbs it exactly as F36 intended.
+
+### Refuted 3: it is not a 2D projection artefact
+
+A projected segment length is not invariant to limb orientation, so 2D variance should
+conflate reconstruction error with legitimate out-of-plane motion. Switching the veto to
+world coordinates was the obvious fix. It does not work:
+
+| Segment | Band | 2D over 6% | 3D over 6% |
+|---|---|---|---|
+| upper_arm | part-way | 57.7% | 57.2% |
+| forearm | part-way | 87.0% | 79.5% |
+| forearm | hanging | 37.0% | 21.3% |
+
+**Barely better where it matters.** Re-tuning a validated threshold for world coordinates
+would have cost an hour and bought nothing. Worth recording as the second time in this
+project that an obvious-looking fix was killed by measuring it first (see also F25 -> F36).
+
+### What is actually happening: the window spans the movement
+
+| Band | Elbow speed | upper_arm over veto | femur over veto |
+|---|---|---|---|
+| hanging | 0.0038 torso/frame | 9.3% | 9.8% |
+| **part-way** | **0.0147 torso/frame** | **57.7%** | **25.9%** |
+| horizontal | 0.0018 torso/frame | 24.3% | **0.0%** |
+
+The legs settle it. Femur and shank exceed the threshold 26-37% of the time during the
+part-way band and **0.0%** when the arms are horizontal - and the legs were doing nothing
+different. The band is simply the moving phase, and every segment reacts to it.
+
+**The veto fires on movement, not on posture.** `bone_history_frames = 30` is a one-second
+window at 30 FPS; a window spanning a fast arm raise contains genuinely different
+reconstructions, and their variance exceeds 6%. This is the first consequence to surface
+from one of the three constants that Phase 12 annotated as *chosen rather than measured*.
+
+### Decision: change nothing, state it
+
+The behaviour is partly **correct** - during fast motion the reconstruction genuinely is
+less reliable, so some refusal is right. Whether 57-87% is the right amount of caution is
+a separate question, and answering it means re-running F37's eleven failure phases.
+
+**The threshold stays at 6% and the window stays at 30 frames.** This is the only signal
+that caught the `seated` pose's 147 degree knee error, at cv 14.2% where visibility read
+0.88 and no threshold would have caught it (F37). Loosening it to make a demo smoother
+risks losing the one failure that nothing else detects. A measured limitation is worth
+more than an untested improvement.
+
+**Consequence for use:** after a fast movement, hold the pose for about a second before
+expecting a value. The window has to clear the motion. Held still, abduction reads 80-83
+and is steady.
+
+**The honest tension, stated rather than hidden:** this is a biomechanics tool whose trust
+signal is least willing to answer *while the subject is moving*, which is when the
+measurement is most wanted. Neither review found this; both found symptoms of it.
+
+### Weak point
+
+One subject, one session, one movement type. The speed bands come from a single arm-raise
+sequence, so "fast" here means 0.0147 torso-lengths per frame and nothing is known about
+where the signal sits for a gait cycle or a squat. The decision not to re-tune rests on
+F37's phases remaining representative, which has not been re-checked since.
+
+---
+
 ---
 
 ## Settled by measurement
@@ -1197,10 +1390,15 @@ bilateral signals - it is that the bilateral signal should not have had a veto.
 9. One Euro on LANDMARKS (not angles), beta ~= 0.01; peaks read unfiltered (F15, F27)
 10. Runtime rotation detection to flag unreliable 2D measurements (F12)
 11. Model: `pose_landmarker_full`; heavy rejected, re-verified (F16, F24)
-16. Two inference workers: 49.9 FPS at 52.9 ms e2e (F25)
+16. Full system measured: **30.0 FPS live** (camera ceiling), 39.0 FPS pipeline
+    throughput, 24.7 ms e2e p50. Inference is 79% of the frame; phases 4-8 cost
+    3.7 ms of 25.2. No fallback rung needed (F38, supersedes F25's 49.9 FPS)
 17. Plane-validity: 2D unusable below ~45 deg body rotation (F27)
 18. Veto signals: detection rate, per-joint visibility (< 0.55), per-side bone-length
-    variance (cv > 6%), plane presented. Bone-length asymmetry is ADVISORY only (F30, F37)
+    variance (cv > 6%), plane presented. Bone-length asymmetry is ADVISORY only (F30, F37).
+    The variance veto is **motion-sensitive** - it fires on 57-87% of frames during fast
+    movement against 0-25% when still - and is kept unchanged anyway, because it is the
+    only signal that catches the seated 147 deg error (F39)
 19. No camera calibration; runtime minimum-size check instead (F31)
 20. TWO subject positions required: side-on for the five sagittal measurements,
     face-on for shoulder abduction. No single camera view serves both (F34)
@@ -1247,7 +1445,7 @@ bilateral signals - it is that the bilateral signal should not have had a veto.
 | 8 | Filter landmarks or the angle? | Probably equivalent | Replay both (F27) | Landmarks better by **40-45%** during motion; equivalent at rest | **High** | One Euro on landmarks, before angle computation |
 | 9 | Is heavy's 23 deg drift real? | Possibly an artefact | Shared-yaw re-run (F24) | Real: +21.6 vs +4.2 for full. Also models disagree with each other by 10-18 deg | **High** | heavy rejected; `full` retained |
 | 10 | MSMF duplicates and the real FPS ceiling? | Fixed by the exposure change | Re-measure both backends (F26) | MSMF still 11% duplicates and 2x the p95 jitter. **DirectShow: 0% duplicates, 30 FPS, p95 48 ms** | **High** | DirectShow, exposure explicit, 640x480 |
-| 11 | Can the full pipeline hold 30 FPS, and where is the bottleneck? | Inference-bound, more threads better | Threaded harness (F25) | Inference is 96-99% of budget. 1 worker already gives 34.4 FPS. **More workers trade latency for throughput we do not need** | **High** | 2 workers: 49.9 FPS at 52.9 ms |
+| 11 | Can the full pipeline hold 30 FPS, and where is the bottleneck? | Inference-bound, more threads better | Threaded harness (F25), then the whole application (F38) | Inference is 79% of the frame. **Shipped system: 30.0 FPS live, 39.0 throughput, 24.7 ms e2e.** The bottleneck is the model, and CPU contention moves it 2.4x | **High** | One sequential worker, VIDEO mode, no fallback rung applied (F36, F38) |
 | 12 | What breaks it? | Occlusion and frame edges | 12-phase session (F30) | Every large failure detected. Bone asymmetry catches rotation and seated, which visibility misses | **High** | Four runtime validity signals |
 | 13 | How sensitive to camera setup? | Distance matters most | near/far/low/high (F31) | Camera height under 2 deg effect. Distance matters via detection failure (43% at 63 px) | **High** | No calibration; runtime size check |
 

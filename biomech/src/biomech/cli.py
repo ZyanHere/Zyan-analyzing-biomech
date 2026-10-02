@@ -72,6 +72,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     out = p.add_argument_group("output")
     out.add_argument("--metrics-out", type=Path, help="write timing results as JSON at exit")
+    out.add_argument(
+        "--label",
+        help="name this run in the metrics JSON. Used to tell benchmark "
+        "configurations apart when comparing them later.",
+    )
     out.add_argument("--no-ui", action="store_true", help="run headless (benchmarking)")
     out.add_argument("--duration", type=float, help="stop after N seconds")
     out.add_argument("-v", "--verbose", action="store_true", help="debug logging")
