@@ -32,9 +32,24 @@ the printed validation reference.
 
 ## What is not here
 
-Nine video and still files, 8.6 MB, **never committed** — four session recordings, four
-exposure-test recordings, one raw frame. `.gitignore` caught them from the first commit, so
-they exist only on the author's disk and were never published.
+Nine video and still files, 9.2 MB — four session recordings, four exposure-test
+recordings, one raw frame. `.gitignore` caught them from the first commit, so they were
+**never published**, and on **2026-10-02** they were **deleted from disk** as well. Because
+they were never committed, deleting them removes them completely; no history rewrite was
+needed or performed.
+
+**What that cost, stated rather than glossed:** F16 and F24 compared pose models by
+replaying *identical frames* through `lite`, `full` and `heavy`. A landmark recording
+cannot stand in — its landmarks are already one model's output. Those two findings are now
+**documented but no longer reproducible**, and anyone wanting to re-derive them must record
+their own video. That was accepted knowingly: the models were chosen and the finding
+written up, so the data had done its work, and it was the only imagery of the subject
+anywhere in the project.
+
+The nine video-dependent tests now **skip** rather than fail, each naming its reason
+(`recorded video is gitignored; run a session first`). The suite reports 166 passed and 9
+skipped, against 175 passed before — the arithmetic matches, so no failure is hiding behind
+a skip.
 
 Verified in history, not only on disk:
 
@@ -42,8 +57,9 @@ Verified in history, not only on disk:
 git log --all --pretty=format: --name-only --diff-filter=A | sort -u | grep -iE "\.(mp4|png|jpg|jsonl)$"
 ```
 
-That returns exactly the five `.jsonl` files and the protractor sheet, and no `.mp4` or
-`.jpg` has ever been added on any branch. The paths it prints are the **pre-restructure**
+That returns exactly the `.jsonl` files and the protractor sheet, and no `.mp4` or `.jpg`
+has ever been added on any branch. The protractor is the printed validation reference, not
+imagery of anyone, and is deliberately kept. The paths it prints are the **pre-restructure**
 ones (`biomech/fixtures/...`) rather than today's `biomech/research/fixtures/...`, which is
 worth knowing before writing any filter against them.
 

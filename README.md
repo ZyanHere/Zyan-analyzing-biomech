@@ -41,12 +41,17 @@ Run it:
 biomech --source camera
 ```
 
-**No webcam? It still runs.** Every finding in this repository is reproducible from
+**No webcam? It still runs.** The application and every landmark-based finding replay from
 recorded data, with no camera and no model:
 
 ```bash
 biomech --source landmarks --path biomech/research/fixtures/sessions/session.jsonl
 ```
+
+Six investigation scripts need video, and those recordings were images of the subject, so
+they were deleted rather than published — see
+[research/experiments/README.md](biomech/research/experiments/README.md) for which ones and
+how to supply your own, and [DATA.md](biomech/docs/DATA.md) for why.
 
 ---
 
@@ -318,6 +323,7 @@ biomech/
     fixtures/              recorded sessions for replay
   docs/
     FINDINGS.md            39 findings, including seven reversals
+    BEYOND_THE_BRIEF.md    what is here that the assignment did not ask for
     BUILD_PLAN.md          the 13 phases this was built in
     CODE_STANDARDS.md      the conventions src/ is held to
     DATA.md                what personal data is committed, and why
@@ -325,7 +331,9 @@ biomech/
   models/                  downloaded .task files (not in git)
 ```
 
-Start with [ARCHITECTURE.md](ARCHITECTURE.md) for the design, or
+Short on time? [BEYOND_THE_BRIEF.md](biomech/docs/BEYOND_THE_BRIEF.md) is a five-minute
+read covering the parts worth a reviewer's attention. Otherwise start with
+[ARCHITECTURE.md](ARCHITECTURE.md) for the design, or
 [FINDINGS.md](biomech/docs/FINDINGS.md) for the evidence behind it. Every tuned constant in
 `config.py` carries the finding number that set it:
 

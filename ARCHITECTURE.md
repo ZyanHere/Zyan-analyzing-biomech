@@ -2,10 +2,12 @@
 
 Design for the real-time biomechanical analysis application.
 
-Every decision here was settled by experiment during the investigation phase. Findings
-are cited as `F<n>` and live in [FINDINGS.md](FINDINGS.md); each has a rerunnable script
-in `experiments/`. Where a decision was reversed by later evidence, the reversal is
-noted rather than hidden.
+Every decision here was settled by experiment during the investigation phase. Findings are
+cited as `F<n>` and live in [FINDINGS.md](biomech/docs/FINDINGS.md); each has a script in
+[`biomech/research/experiments/`](biomech/research/experiments), most of which rerun from
+the committed landmark fixtures. Six need a video recording that was deleted as personal
+data — that directory's README says which, and why. Where a decision was reversed by later
+evidence, the reversal is noted rather than hidden.
 
 ---
 

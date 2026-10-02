@@ -3,4 +3,8 @@
 mediapipe==1.0.1
 opencv-python==5.0.0.93
 numpy==2.5.3
+
+# Not needed to run the application. One investigation script
+# (research/experiments/06_validation/make_protractor.py) uses it to generate the
+# printed validation sheet, and that sheet is already committed as a PDF.
 matplotlib==3.11.2

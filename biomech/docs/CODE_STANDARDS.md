@@ -40,7 +40,10 @@ inconsistent structure, and print-based output. **They are not held to this docu
 they are not pretending to be.**
 
 They are kept because they are the evidence behind every decision in `src/`, and because
-every finding must remain reproducible. Dressing one-off experiments up as production code
+every finding must remain reproducible from the data that is still here. Six of them read
+video that was deleted as personal data, and fail confusingly without it - see
+`research/experiments/README.md`, which lists them and says how to supply your own
+recording. Dressing one-off experiments up as production code
 would cost real effort and make the repository *less* honest, not more.
 
 The rule: **`src/` never imports from `research/`.** Anything the application needs is in

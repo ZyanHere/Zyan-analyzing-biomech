@@ -2,7 +2,9 @@
 name = "biomech"
 version = "0.1.0"
 description = "Real-time biomechanical analysis from a single monocular camera"
-requires-python = ">=3.12"
+# 3.14, not 3.12: the pinned mediapipe build requires it. Declared here so pip
+# refuses early with a clear message rather than failing deep in a wheel build.
+requires-python = ">=3.14"
 
 [project.scripts]
 biomech = "biomech.__main__:main"
