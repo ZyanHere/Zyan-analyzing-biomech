@@ -131,11 +131,16 @@ class PipelineMetrics:
         """Current values, for the health panel and the JSON report."""
         return {
             "displayed_fps": self.displayed.rate,
+            # Mean as well as median: the brief asks for average latency, and a
+            # mean is the one statistic a long tail actually moves. Where the two
+            # disagree, the gap between them IS the finding.
+            "inference_mean_ms": self.inference_ms.mean,
             "inference_p50_ms": self.inference_ms.percentile(50),
             "inference_p95_ms": self.inference_ms.percentile(95),
             "biomech_p50_ms": self.biomech_ms.percentile(50),
             "render_p50_ms": self.render_ms.percentile(50),
             "render_p95_ms": self.render_ms.percentile(95),
+            "end_to_end_mean_ms": self.end_to_end_ms.mean,
             "end_to_end_p50_ms": self.end_to_end_ms.percentile(50),
             "end_to_end_p95_ms": self.end_to_end_ms.percentile(95),
             "frames_processed": float(self.frames_processed),

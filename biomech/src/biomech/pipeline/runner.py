@@ -231,14 +231,14 @@ def _report(pipeline: Pipeline) -> None:
              s["frames_processed"], s["frames_without_person"])
     log.info("  displayed FPS    : %6.1f", s["displayed_fps"])
     if pipeline.provider.runs_model:
-        log.info("  inference  p50/p95: %6.1f / %.1f ms",
-                 s["inference_p50_ms"], s["inference_p95_ms"])
+        log.info("  inference  mean/p50/p95: %5.1f / %.1f / %.1f ms",
+                 s["inference_mean_ms"], s["inference_p50_ms"], s["inference_p95_ms"])
     else:
         log.info("  inference         :   replayed, model not run")
     log.info("  biomech    p50    : %6.2f ms", s["biomech_p50_ms"])
     log.info("  render     p50/p95: %6.1f / %.1f ms",
              s["render_p50_ms"], s["render_p95_ms"])
     label = "end-to-end" if pipeline.provider.timestamps_are_live else "processing"
-    log.info("  %-10s p50/p95: %6.1f / %.1f ms", label,
-             s["end_to_end_p50_ms"], s["end_to_end_p95_ms"])
+    log.info("  %-10s mean/p50/p95: %5.1f / %.1f / %.1f ms", label,
+             s["end_to_end_mean_ms"], s["end_to_end_p50_ms"], s["end_to_end_p95_ms"])
     log.info("  source drops     : %6.0f", s["source_drops"])

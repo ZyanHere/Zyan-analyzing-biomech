@@ -54,6 +54,14 @@ def load_runs() -> dict[str, dict]:
     return runs
 
 
+def _latency(metrics: dict) -> str:
+    """Mean, median and p95 - or median and p95 for a run recorded before the
+    mean was added. Missing is shown as missing, never silently as zero."""
+    mean = metrics.get("end_to_end_mean_ms")
+    tail = f"{metrics['end_to_end_p50_ms']:.1f} / {metrics['end_to_end_p95_ms']:.1f} ms"
+    return f"{mean:.1f} / {tail}" if mean is not None else f"- / {tail}"
+
+
 def _hardware_line(report: dict) -> str:
     hw = report["hardware"]
     return (
@@ -68,7 +76,7 @@ def render(runs: dict[str, dict]) -> str:
         BEGIN,
         "",
         "| Run | Displayed FPS | Inference p50 | Biomech p50 | Render p50 "
-        "| Latency p50 / p95 | Drops |",
+        "| Latency mean / p50 / p95 | Drops |",
         "|---|---|---|---|---|---|---|",
     ]
     kinds: set[str] = set()
@@ -88,7 +96,7 @@ def render(runs: dict[str, dict]) -> str:
         lines.append(
             f"| {title} | **{m['displayed_fps']:.1f}** | {m['inference_p50_ms']:.1f} ms "
             f"| {m['biomech_p50_ms']:.2f} ms | {rendered} "
-            f"| {m['end_to_end_p50_ms']:.1f} / {m['end_to_end_p95_ms']:.1f} ms "
+            f"| {_latency(m)} "
             f"| {m['source_drops']:.0f} |"
         )
 
@@ -98,6 +106,14 @@ def render(runs: dict[str, dict]) -> str:
 
     reference = runs.get("camera-full-ui") or next(iter(runs.values()))
     lines += [""]
+    if any("end_to_end_mean_ms" not in r["metrics"] for r in runs.values()):
+        lines += [
+            "A `-` under mean marks a run recorded before mean latency was added to the "
+            "metrics. Those runs replayed video fixtures that have since been deleted as "
+            "personal data, so they cannot be re-recorded; their median and 95th "
+            "percentile stand as measured.",
+            "",
+        ]
     if kinds - {"end_to_end"}:
         lines += [
             "Latency is measured from capture unless a row says otherwise; a row marked "
